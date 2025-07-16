@@ -44,7 +44,7 @@ ReqId = str
 GET_META_MSG = b"get_meta_msg"
 
 import os
-VLLM_DEBUG_NIXL_XFER_TIME = os.getenv("VLLM_DEBUG_NIXL_XFER_TIME", "0") == "1"
+VLLM_DEBUG_NIXL_XFER_TIME = os.getenv("VLLM_DEBUG_NIXL_XFER_TIME", "1") == "1"
 
 logger = init_logger(__name__)
 
