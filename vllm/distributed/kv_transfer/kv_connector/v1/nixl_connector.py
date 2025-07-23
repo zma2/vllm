@@ -923,7 +923,10 @@ class NixlConnectorWorker:
         # Add to requests that are waiting to be read and track expiration.
         self._reqs_to_send.update(metadata.reqs_to_send)
         end = time.perf_counter()
-        logger.info(f"===== start_load_kv time: {end-start: 0.5f}s")
+        if len(metadata.reqs_to_recv) > 0:
+            logger.info(
+                f"===== {len(metadata.reqs_to_recv)}: start_load_kv time: {end-start: 0.5f}s"
+            )
 
     def _read_blocks_for_req(self, req_id: str, meta: ReqMeta):
         logger.debug(
