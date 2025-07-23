@@ -893,6 +893,7 @@ class NixlConnectorWorker:
         return done_req_ids
 
     def start_load_kv(self, metadata: NixlConnectorMetadata):
+        start = time.perf_counter()
         """
         Start loading by triggering non-blocking nixl_xfer.
         We check for these trnxs to complete in each step().
@@ -921,6 +922,10 @@ class NixlConnectorWorker:
 
         # Add to requests that are waiting to be read and track expiration.
         self._reqs_to_send.update(metadata.reqs_to_send)
+        end = time.perf_counter()
+        logger.info(
+            f"===== {len(metadata.reqs_to_recv)=}start_load_kv time: {end-start: 0.5f}s"
+        )
 
     def _read_blocks_for_req(self, req_id: str, meta: ReqMeta):
         logger.debug(
@@ -1019,10 +1024,14 @@ class NixlConnectorWorker:
             remote_xfer_side_handle,
             remote_block_descs_ids,
             notif_msg=notif_id,
+            skip_desc_merge=True,
         )
 
         # Begin async xfer.
+        start = time.perf_counter()
         self.nixl_wrapper.transfer(handle)
+        end = time.perf_counter()
+        logger.info(f"TRANSFER TIME: {end-start :0.4f}s")
 
         # Use handle to check completion in future step().
         # TODO (NickLucche) surface xfer elapsed time
