@@ -941,6 +941,7 @@ class NixlConnectorWorker:
     def _read_blocks(self, local_block_ids: list[int],
                      remote_block_ids: list[int], dst_engine_id: str,
                      request_id: str):
+        start_all = time.perf_counter()
         # NOTE(rob): having the staging blocks be on the READER side is
         # not going to work well (since we will have to call rearrange tensors).
         # after we detect the txn is complete (which means we cannot make the
@@ -1037,6 +1038,8 @@ class NixlConnectorWorker:
         # TODO (NickLucche) surface xfer elapsed time
         self._recving_transfers[request_id].append(
             (handle, time.perf_counter()))
+        end_all = time.perf_counter()
+        logger.info(f"TOTAL_TIME: {end_all-start_all :0.4f}s")
 
     def _get_block_descs_ids(self,
                              engine_id: str,
