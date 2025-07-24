@@ -923,7 +923,7 @@ class NixlConnectorWorker:
         # Add to requests that are waiting to be read and track expiration.
         self._reqs_to_send.update(metadata.reqs_to_send)
         end = time.perf_counter()
-        if len(metadata.reqs_to_recv) > 0:
+        if self.tp_rank == 0:
             logger.info(
                 f"===== {len(metadata.reqs_to_recv)}: start_load_kv time: {end-start: 0.5f}s"
             )
@@ -1032,7 +1032,8 @@ class NixlConnectorWorker:
         start = time.perf_counter()
         self.nixl_wrapper.transfer(handle)
         end = time.perf_counter()
-        logger.info(f"TRANSFER TIME: {end-start :0.4f}s")
+        if self.tp_rank == 0:
+            logger.info(f"TRANSFER TIME: {end-start :0.4f}s")
 
         # Use handle to check completion in future step().
         # TODO (NickLucche) surface xfer elapsed time
