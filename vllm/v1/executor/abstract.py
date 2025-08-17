@@ -88,11 +88,10 @@ class Executor(ExecutorBase):
 
     def sample(
         self,
-        scheduler_output,
         grammar_bitmask,
     ) -> Union[ModelRunnerOutput, Future[ModelRunnerOutput]]:
         output = self.collective_rpc("sample",
-                                     args=(scheduler_output, grammar_bitmask))
+                                     args=(grammar_bitmask, ))
         return output[0]
 
     def get_draft_token_ids(self) -> Optional[DraftTokenIds]:

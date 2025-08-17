@@ -291,8 +291,7 @@ class EngineCore:
             scheduler_output,
         )
         grammar_bitmask = self.scheduler.get_grammar_bitmask(scheduler_output)
-        model_output = self.model_executor.sample(scheduler_output,
-                                                  grammar_bitmask)
+        model_output = self.model_executor.sample(grammar_bitmask)
         engine_core_outputs = self.scheduler.update_from_output(
             scheduler_output, model_output)  # type: ignore
         return (engine_core_outputs,

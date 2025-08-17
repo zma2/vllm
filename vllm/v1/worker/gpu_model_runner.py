@@ -1569,7 +1569,6 @@ class GPUModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def sample(
         self,
-        scheduler_output: "SchedulerOutput",
         grammar_bitmask: Optional[np.ndarray],
     ) -> Optional[ModelRunnerOutput]:
         # Only execute on the last PP rank.
