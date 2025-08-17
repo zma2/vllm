@@ -293,7 +293,6 @@ class EngineCore:
                 self.scheduler.update_draft_token_ids(draft_token_ids)
 
         scheduler_output = self.scheduler.schedule()
-        # NOTE: execute_model is a non-blocking call.
         self.execute_model_with_error_logging(
             self.model_executor.execute_model,  # type: ignore
             scheduler_output,
