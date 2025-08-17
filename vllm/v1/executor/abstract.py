@@ -84,7 +84,7 @@ class Executor(ExecutorBase):
         self,
         scheduler_output,
     ) -> None:
-        _ = self.collective_rpc("execute_model", args=(scheduler_output, ))
+        self.collective_rpc("execute_model", args=(scheduler_output, ))
 
     def sample(
         self,

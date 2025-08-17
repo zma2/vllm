@@ -604,8 +604,8 @@ class Scheduler(SchedulerInterface):
         req_ids = scheduler_output.num_scheduled_tokens.keys()
         structured_output_request_ids: dict[str, int] = {}
         for i, req_id in enumerate(req_ids):
-            req = self.requests[req_id]
-            if req.use_structured_output:
+            req = self.requests.get(req_id)
+            if req is not None and req.use_structured_output:
                 # PERF: in case of chunked prefill,
                 # request might not include any new tokens.
                 # Therefore, we might introduce some additional
