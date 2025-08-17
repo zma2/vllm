@@ -258,12 +258,12 @@ class EngineCore:
 
     def execute_model_with_error_logging(
         self,
-        model_fn: Callable[[SchedulerOutput], ModelRunnerOutput],
+        model_fn: Callable[[SchedulerOutput], None],
         scheduler_output: SchedulerOutput,
-    ) -> ModelRunnerOutput:
+    ) -> None:
         """Execute the model and log detailed info on failure."""
         try:
-            return model_fn(scheduler_output)
+            model_fn(scheduler_output)
         except Exception as err:
             # We do not want to catch BaseException here since we're only
             # interested in dumping info when the exception is due to an
@@ -293,12 +293,16 @@ class EngineCore:
                 self.scheduler.update_draft_token_ids(draft_token_ids)
 
         scheduler_output = self.scheduler.schedule()
-        model_output = self.execute_model_with_error_logging(
+        # NOTE: execute_model is a non-blocking call.
+        self.execute_model_with_error_logging(
             self.model_executor.execute_model,  # type: ignore
-            scheduler_output)
+            scheduler_output,
+        )
+        grammar_bitmask = self.scheduler.get_grammar_bitmask()
+        model_output = self.model_executor.sample(scheduler_output,
+                                                  grammar_bitmask)
         engine_core_outputs = self.scheduler.update_from_output(
             scheduler_output, model_output)  # type: ignore
-
         return (engine_core_outputs,
                 scheduler_output.total_num_scheduled_tokens > 0)
 

@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    import numpy as np
-    import numpy.typing as npt
 
     from vllm.distributed.kv_transfer.kv_connector.v1.base import (
         KVConnectorMetadata)
@@ -146,12 +144,6 @@ class SchedulerOutput:
     # list of (req_id, encoder_input_index) tuples.
     # Used to free the encoder cache.
     free_encoder_input_ids: list[tuple[str, int]]
-
-    # Dict of request ids to their index within the batch
-    # for filling the next token bitmask
-    structured_output_request_ids: dict[str, int]
-    # the bitmask for the whole batch
-    grammar_bitmask: Optional[npt.NDArray[np.int32]]
 
     # KV Cache Connector metadata.
     kv_connector_metadata: Optional[KVConnectorMetadata] = None

@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Optional, Union
 
+import numpy as np
+
 if TYPE_CHECKING:
     from vllm.distributed.kv_transfer.kv_connector.v1 import KVConnectorBase_V1
     from vllm.v1.core.sched.output import SchedulerOutput
@@ -39,6 +41,14 @@ class SchedulerInterface(ABC):
             A SchedulerOutput object containing information about the scheduled
             requests.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_grammar_bitmask(
+        self,
+        scheduler_output: "SchedulerOutput",
+    ) -> Optional[np.ndarray]:
+        """Get the grammar bitmask for the scheduled requests."""
         raise NotImplementedError
 
     @abstractmethod
