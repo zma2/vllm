@@ -172,3 +172,59 @@ class MultiGroupBlockTable:
     def __getitem__(self, idx: int) -> "BlockTable":
         """Returns the BlockTable for the i-th KV cache group."""
         return self.block_tables[idx]
+
+
+import numba
+
+
+@numba.njit
+def append_block_ids(
+        block_table: np.ndarray,  # [max_num_reqs, max_num_blocks_per_req]
+        new_block_ids: np.ndarray,  # [num_new_blocks]
+        cu_num_block_ids: np.ndarray,  # [num_reqs]
+        offsets: np.ndarray,  # [num_reqs]
+        row_mapping: np.ndarray,  # [num_reqs]
+) -> None:
+    num_reqs = row_mapping.shape[0]
+    for i in range(num_reqs):
+        start_idx = cu_num_block_ids[i - 1] if i > 0 else 0
+        end_idx = cu_num_block_ids[i]
+        num_blocks = end_idx - start_idx
+        if num_blocks == 0:
+            continue
+        block_ids = new_block_ids[start_idx:end_idx]
+
+        row_idx = row_mapping[i]
+        offset = offsets[i]
+        block_table[row_idx, offset:offset + num_blocks] = block_ids
+
+
+if __name__ == "__main__":
+    max_num_reqs = 2048
+    max_model_len = 128 * 1024
+    page_size = 16
+    max_num_blocks_per_req = max_model_len // page_size
+    block_table = np.zeros((max_num_reqs, max_num_blocks_per_req),
+                           dtype=np.int32)
+
+    num_reqs = max_num_reqs // page_size
+
+    new_block_ids = np.random.randint(0,
+                                      10000,
+                                      size=(num_reqs),
+                                      dtype=np.int32)
+    num_new_block_ids = np.ones(num_reqs, dtype=np.int32)
+    # num_new_block_ids.fill(0)
+    cu_num_block_ids = np.cumsum(num_new_block_ids)
+    offsets = np.random.randint(0, 100, size=(num_reqs), dtype=np.int32)
+    mapping = np.arange(num_reqs, dtype=np.int32)
+
+    append_block_ids(block_table, new_block_ids, cu_num_block_ids, offsets,
+                     mapping)
+
+    import time
+    start_time = time.time()
+    append_block_ids(block_table, new_block_ids, cu_num_block_ids, offsets,
+                     mapping)
+    end_time = time.time()
+    print(f"Time taken: {(end_time - start_time) * 1000:.3f} ms")

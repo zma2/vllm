@@ -9,6 +9,8 @@ from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any, Optional, Union
 
+import numpy as np
+
 from vllm.config import VllmConfig
 from vllm.distributed.kv_events import EventPublisherFactory, KVEventBatch
 from vllm.distributed.kv_transfer.kv_connector.factory import (
@@ -75,12 +77,13 @@ class Scheduler(SchedulerInterface):
             self.kv_events_config is not None
             and self.kv_events_config.enable_kv_cache_events)
 
+        self.num_kv_cache_groups = len(self.kv_cache_config.kv_cache_groups)
         # Create KVConnector for the Scheduler. Note that each Worker
         # will have a corresponding KVConnector with Role=WORKER.
         # KV Connector pushes/pull of remote KVs for P/D and offloading.
         self.connector = None
         if self.vllm_config.kv_transfer_config is not None:
-            assert len(self.kv_cache_config.kv_cache_groups) == 1, (
+            assert self.num_kv_cache_groups == 1, (
                 "Multiple KV cache groups are not currently supported "
                 "with KV connectors")
             self.connector = KVConnectorFactory.create_connector(
@@ -532,8 +535,7 @@ class Scheduler(SchedulerInterface):
 
         # Get the longest common prefix among all requests in the running queue.
         # This can be potentially used for cascade attention.
-        num_common_prefix_blocks = [0] * len(
-            self.kv_cache_config.kv_cache_groups)
+        num_common_prefix_blocks = [0] * self.num_kv_cache_groups
         if self.running:
             any_request = self.running[0]
             num_common_prefix_blocks = (
@@ -633,7 +635,8 @@ class Scheduler(SchedulerInterface):
     ) -> CachedRequestData:
         req_ids: list[str] = []
         new_token_ids: list[list[int]] = []
-        new_block_ids: list[tuple[list[int], ...]] = []
+        new_block_ids = tuple([] for _ in range(self.num_kv_cache_groups))
+        num_block_ids = tuple([] for _ in range(self.num_kv_cache_groups))
         num_computed_tokens: list[int] = []
 
         use_connector = self.connector is not None
@@ -656,18 +659,27 @@ class Scheduler(SchedulerInterface):
                 # out of bounds errors. TODO: Remove this once the KVConnector
                 # is updated to handle token IDs properly.
                 new_token_ids.append([])
-            new_block_ids.append(req_to_new_block_ids[req_id])
+            for i in range(self.num_kv_cache_groups):
+                block_ids = req_to_new_block_ids[req_id][i]
+                new_block_ids[i].extend(block_ids)
+                num_block_ids[i].append(len(block_ids))
             num_computed_tokens.append(req.num_computed_tokens)
         # Because resumed_reqs is usually empty, it is more efficient to do
         # in-place appending so that we don't need to allocate a new list.
         resumed_from_preemption = [False] * len(running_reqs)
         resumed_from_preemption += [True] * len(resumed_reqs)
 
+        new_block_ids = tuple(
+            np.array(block_ids, dtype=np.int32) for block_ids in new_block_ids)
+        cu_num_block_ids = tuple(
+            np.cumsum(num_block_ids, dtype=np.int32)
+            for num_block_ids in num_block_ids)
         return CachedRequestData(
             req_ids=req_ids,
             resumed_from_preemption=resumed_from_preemption,
             new_token_ids=new_token_ids,
             new_block_ids=new_block_ids,
+            cu_num_block_ids=cu_num_block_ids,
             num_computed_tokens=num_computed_tokens,
         )
 
