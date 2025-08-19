@@ -39,3 +39,20 @@ def test_models(example_prompts, model_name) -> None:
         expected_str = EXPECTED_STRS_MAP[model_name][i]
         assert expected_str == output_str, (
             f"Expected: {expected_str!r}\nvLLM: {output_str!r}")
+
+curl https://localhost:8002/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "Query: What is the capital of France? \n\nDocuments: \n1. Paris is the capital city of France.\n2. Berlin is the capital of Germany.\n \n Rank the documents from most to least relevant to the query and provide a relevance score",
+    "model": "$MODEL",
+    "encoding_format": "float"
+  }'
+
+
+curl https://localhost:8002/v1/rerank \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": "Query: What is the capital of France? \n\nDocuments: \n1. Paris is the capital city of France.\n2. Berlin is the capital of Germany.\n \n Rank the documents from most to least relevant to the query and provide a relevance score",
+    "prompt": "Query: What is the capital of France? \n\nDocuments: \n1. Paris is the capital city of France.\n2. Berlin is the capital of Germany.\n \n Rank the documents from most to least relevant to the query and provide a relevance score"
+    "model": "BAAI/bge-reranker-v2-m3",
+  }'

@@ -840,3 +840,8 @@ Key capabilities:
 The following example shows how to deploy a large model like DeepSeek R1 with Ray Serve LLM: <gh-file:examples/online_serving/ray_serve_deepseek.py>.
 
 Learn more about Ray Serve LLM with the official [Ray Serve LLM documentation](https://docs.ray.io/en/latest/serve/llm/serving-llms.html).
+
+curl http://localhost:8002/v1/rerank -H "Content-Type: application/json"   -d '{
+    "query": "What is the capital of France?",
+    "documents": ["The capital of France is Paris.", "The capital of Germany is Berlin."]
+  }'
