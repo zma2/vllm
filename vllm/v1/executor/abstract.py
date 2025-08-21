@@ -90,12 +90,15 @@ class Executor(ExecutorBase):
         self,
         grammar_bitmask,
     ) -> Union[ModelRunnerOutput, Future[ModelRunnerOutput]]:
-        output = self.collective_rpc("sample",
-                                     args=(grammar_bitmask, ))
+        output = self.collective_rpc("sample", args=(grammar_bitmask, ))
         return output[0]
 
     def get_draft_token_ids(self) -> Optional[DraftTokenIds]:
         output = self.collective_rpc("get_draft_token_ids")
+        return output[0]
+
+    def take_draft_token_ids(self) -> Optional[DraftTokenIds]:
+        output = self.collective_rpc("take_draft_token_ids")
         return output[0]
 
     @property
