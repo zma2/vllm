@@ -11,6 +11,7 @@ from vllm import envs
 from vllm.config import LogprobsMode
 from vllm.logger import init_logger
 from vllm.platforms import current_platform
+from vllm.v1.sample.ops.gumbel_sample import gumbel_sample
 
 logger = init_logger(__name__)
 
@@ -74,12 +75,12 @@ class TopKTopPSampler(nn.Module):
         else:
             self.forward = self.forward_native
 
-        self.apply_top_k_top_p = apply_top_k_top_p
-
     def forward_native(
         self,
         logits: torch.Tensor,
-        generators: dict[int, torch.Generator],
+        seeds: torch.Tensor,
+        pos: torch.Tensor,
+        should_use_seed: bool,
         k: Optional[torch.Tensor],
         p: Optional[torch.Tensor],
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -88,39 +89,42 @@ class TopKTopPSampler(nn.Module):
 
         The logits tensor may be updated in-place.
         """
-        logits = self.apply_top_k_top_p(logits, k, p)
+        logits = apply_top_k_top_p(logits, k, p)
         logits_to_return = None
         if self.logprobs_mode == LogprobsMode.PROCESSED_LOGITS:
             logits_to_return = logits
         elif self.logprobs_mode == LogprobsMode.PROCESSED_LOGPROBS:
             logits_to_return = logits.log_softmax(dim=-1, dtype=torch.float32)
         probs = logits.softmax(dim=-1, dtype=torch.float32)
-        return random_sample(probs, generators), logits_to_return
+        return gumbel_sample(probs, seeds, pos), logits_to_return
 
     def forward_cuda(
         self,
         logits: torch.Tensor,
-        generators: dict[int, torch.Generator],
+        seeds: torch.Tensor,
+        pos: torch.Tensor,
+        should_use_seed: bool,
         k: Optional[torch.Tensor],
         p: Optional[torch.Tensor],
     ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         """More optimized implementation for top-k and top-p sampling."""
-        # We prefer `random_sample` over `flashinfer_sample` when sorting is
-        # not needed. This is because `random_sample` does not require
-        # CPU-GPU synchronization while `flashinfer_sample` does.
-        if (k is None and p is None) or generators:
-            if generators:
-                logger.warning_once("FlashInfer 0.2.3+ does not support "
-                                    "per-request generators. Falling back to "
-                                    "PyTorch-native implementation.")
-            return self.forward_native(logits, generators, k, p)
+        if k is None and p is None:
+            return self.forward_native(logits, seeds, pos, should_use_seed, k,
+                                       p)
+        if should_use_seed:
+            logger.warning_once("FlashInfer 0.2.3+ does not support "
+                                "per-request seeds. Falling back to "
+                                "PyTorch-native implementation.")
+            return self.forward_native(logits, seeds, pos, should_use_seed, k,
+                                       p)
+
         assert self.logprobs_mode not in (
             LogprobsMode.PROCESSED_LOGITS, LogprobsMode.PROCESSED_LOGPROBS
         ), "FlashInfer does not support returning logits/logprobs"
         # flashinfer sampling functions expect contiguous logits.
         # In flex_attn/triton_attn fp32 inference, logits can be non-contiguous
         # because of slicing operation in logits_processor.
-        return flashinfer_sample(logits.contiguous(), k, p, generators), None
+        return flashinfer_sample(logits.contiguous(), k, p), None
 
 
 def apply_top_k_top_p(
@@ -191,49 +195,20 @@ def apply_top_k_only(
     return logits
 
 
-def random_sample(
-    probs: torch.Tensor,
-    generators: dict[int, torch.Generator],
-) -> torch.Tensor:
-    """Randomly sample from the probabilities.
-
-    We use this function instead of torch.multinomial because torch.multinomial
-    causes CPU-GPU synchronization.
-    """
-    q = torch.empty_like(probs)
-    # NOTE(woosuk): To batch-process the requests without their own seeds,
-    # which is the common case, we first assume that every request does
-    # not have its own seed. Then, we overwrite the values for the requests
-    # that have their own seeds.
-    if len(generators) != probs.shape[0]:
-        q.exponential_()
-    if generators:
-        # TODO(woosuk): This can be slow because we handle each request
-        # one by one. Optimize this.
-        for i, generator in generators.items():
-            q[i].exponential_(generator=generator)
-    return probs.div_(q).argmax(dim=-1).view(-1)
-
-
 def flashinfer_sample(
     logits: torch.Tensor,
     k: Optional[torch.Tensor],
     p: Optional[torch.Tensor],
-    generators: dict[int, torch.Generator],
 ) -> torch.Tensor:
     """Sample from the logits using FlashInfer.
 
-    Statistically, this function is equivalent to the `random_sample` function.
+    Statistically, this function is equivalent to the `gumbel_sample` function.
     However, this function is faster because it avoids sorting the logits tensor
     via rejection sampling.
 
     NOTE: The outputs of this function do not necessarily match the outputs of
-    the `random_sample` function. It only guarantees that the outputs are
+    the `gumbel_sample` function. It only guarantees that the outputs are
     statistically equivalent.
-
-    NOTE: This function includes CPU-GPU synchronization, while `random_sample`
-    does not. Call this function at the end of the forward pass to minimize
-    the synchronization overhead.
     """
     assert not (k is None and p is None)
     if k is None:

@@ -175,7 +175,9 @@ class Sampler(nn.Module):
         # Apply top_k and/or top_p.
         random_sampled, processed_logprobs = self.topk_topp_sampler(
             logits,
-            sampling_metadata.generators,
+            sampling_metadata.seeds,
+            sampling_metadata.pos,
+            sampling_metadata.should_use_seed,
             sampling_metadata.top_k,
             sampling_metadata.top_p,
         )
