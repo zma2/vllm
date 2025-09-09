@@ -641,7 +641,13 @@ class WorkerProc:
 
     def worker_busy_loop(self, cancel: Optional[threading.Event] = None):
         """Main busy loop for Multiprocessing Workers"""
+        import os
+        p = os.getpid()
+        i = 0
         while True:
+            if i % 100 == 0:
+                logger.info("WorkerProc RSS MB: %d", p.memory_info().rss/1024/1024)
+            i += 1
             method, args, kwargs, output_rank = self.rpc_broadcast_mq.dequeue(
                 cancel=cancel)
             try:
