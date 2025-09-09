@@ -641,8 +641,8 @@ class WorkerProc:
 
     def worker_busy_loop(self, cancel: Optional[threading.Event] = None):
         """Main busy loop for Multiprocessing Workers"""
-        import os
-        p = os.getpid()
+        import os, psutil
+        p = psutil.Process(os.getpid())
         i = 0
         while True:
             if i % 100 == 0:
