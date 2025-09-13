@@ -10,6 +10,7 @@ from vllm.platforms import current_platform
 @triton.jit
 def _compute_probs_kernel(
     probs_ptr,
+    probs_stride,
     seeds_ptr,
     pos_ptr,
     vocab_size,
@@ -29,11 +30,11 @@ def _compute_probs_kernel(
     q = tl.where(q >= RMAX, RMAX_LOG, tl.math.log(q))
     q = -1.0 * q
 
-    p = tl.load(probs_ptr + req_idx * vocab_size + r_offset,
+    p = tl.load(probs_ptr + req_idx * probs_stride + r_offset,
                 mask=r_offset < vocab_size)
     p = p / q
 
-    tl.store(probs_ptr + req_idx * vocab_size + r_offset,
+    tl.store(probs_ptr + req_idx * probs_stride + r_offset,
              p,
              mask=r_offset < vocab_size)
 
@@ -46,7 +47,6 @@ def gumbel_sample_triton(
     # int64[num_reqs]
     pos: torch.Tensor,
 ) -> torch.Tensor:
-    assert probs.is_contiguous()
     assert seeds.is_contiguous()
     assert pos.is_contiguous()
 
@@ -55,6 +55,7 @@ def gumbel_sample_triton(
     BLOCK_SIZE = 8192
     _compute_probs_kernel[(num_reqs, triton.cdiv(vocab_size, BLOCK_SIZE))](
         probs,
+        probs.stride(0),
         seeds,
         pos,
         vocab_size,
